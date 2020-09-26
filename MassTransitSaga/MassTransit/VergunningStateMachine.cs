@@ -8,24 +8,24 @@ using MassTransit;
 
 namespace MassTransitSaga.MassTransit
 {
-    public interface ApproveVergunning : CorrelatedBy<Guid>
+    public interface ApproveVergunning
     {
-        Guid PermitId { get; set; }
+        Guid VergunningId { get; set; }
     }
 
-    public interface GenerateCommunication : CorrelatedBy<Guid>
+    public interface GenerateCommunication
     {
-        Guid PermitId { get; set; }
+        Guid VergunningId { get; set; }
     }
 
-    public interface CommunicationGenerated : CorrelatedBy<Guid>
+    public interface CommunicationGenerated
     {
-        Guid PermitId { get; set; }
+        Guid VergunningId { get; set; }
     }
 
-    public interface CommunicationSent : CorrelatedBy<Guid>
+    public interface CommunicationSent
     {
-        Guid PermitId { get; set; }
+        Guid VergunningId { get; set; }
     }
 
     public class VergunningStateMachine : MassTransitStateMachine<VergunningState>
@@ -44,9 +44,15 @@ namespace MassTransitSaga.MassTransit
         {
             InstanceState(x => x.CurrentState);
 
+            Event(() => ApproveVergunning, x => x.CorrelateById(context => context.Message.VergunningId));
+            Event(() => GenerateCommunication, x => x.CorrelateById(context => context.Message.VergunningId));
+            Event(() => CommunicationGenerated, x => x.CorrelateById(context => context.Message.VergunningId));
+            Event(() => CommunicationSent, x => x.CorrelateById(context => context.Message.VergunningId));
+
             Initially(
                 When(ApproveVergunning)
-                    .PublishAsync(context => context.Init<GenerateCommunication>(new { }))                    
+                    //.Then(x => x.Instance.CorrelationId = x.Data.VergunningId)
+                    .PublishAsync(context => context.Init<GenerateCommunication>(new { VergunningId = context.Instance.CorrelationId }))                    
                     .TransitionTo(Approved));
 
             During(Approved,
@@ -105,7 +111,7 @@ namespace MassTransitSaga.MassTransit
 
             // generate files on docgen
 
-            await _context.Publish<CommunicationGenerated>(new { }).ConfigureAwait(false);
+            await _context.Publish<CommunicationGenerated>(new { VergunningId = context.Instance.CorrelationId }).ConfigureAwait(false);
 
             // call the next activity in the behavior
             await next.Execute(context).ConfigureAwait(false);
@@ -143,7 +149,7 @@ namespace MassTransitSaga.MassTransit
 
             // send documents with email service
 
-            await _context.Publish<CommunicationSent>(new { }).ConfigureAwait(false);
+            await _context.Publish<CommunicationSent>(new { VergunningId = context.Instance.CorrelationId }).ConfigureAwait(false);
 
             // call the next activity in the behavior
             await next.Execute(context).ConfigureAwait(false);

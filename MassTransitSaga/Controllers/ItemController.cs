@@ -21,10 +21,10 @@ namespace MassTransitSaga.Controllers
         }
 
         [HttpPut]
-        [Route("{itemId}/approve")]
-        public async Task ApproveItem(Guid itemId)
+        [Route("{id}/approve")]
+        public async Task ApproveItem(Guid id)
         {
-            await _publishEndpoint.Publish<ApproveVergunning>(new { ItemId = itemId });
+            await _publishEndpoint.Publish<ApproveVergunning>(new { VergunningId = id });
         }
     }
 }
