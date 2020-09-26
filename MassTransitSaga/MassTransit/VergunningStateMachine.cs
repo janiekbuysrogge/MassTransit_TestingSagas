@@ -5,6 +5,10 @@ using System.Threading.Tasks;
 using Automatonymous;
 using GreenPipes;
 using MassTransit;
+using MassTransit.EntityFrameworkCoreIntegration;
+using MassTransit.EntityFrameworkCoreIntegration.Mappings;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace MassTransitSaga.MassTransit
 {
@@ -159,6 +163,31 @@ namespace MassTransitSaga.MassTransit
             where TException : Exception
         {
             return next.Faulted(context);
+        }
+    }
+
+    public class VergunningStateMap : SagaClassMap<VergunningState>
+    {
+        protected override void Configure(EntityTypeBuilder<VergunningState> entity, ModelBuilder model)
+        {
+            entity.Property(x => x.CurrentState).HasMaxLength(64);
+            //entity.Property(x => x.OrderDate);
+
+            // If using Optimistic concurrency, otherwise remove this property
+            //entity.Property(x => x.RowVersion).IsRowVersion();
+        }
+    }
+
+    public class VergunningStateDbContext : SagaDbContext
+    {
+        public VergunningStateDbContext(DbContextOptions options)
+            : base(options)
+        {
+        }
+
+        protected override IEnumerable<ISagaClassMap> Configurations
+        {
+            get { yield return new VergunningStateMap(); }
         }
     }
 }

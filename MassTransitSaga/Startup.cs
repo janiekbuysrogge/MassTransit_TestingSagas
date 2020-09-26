@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using MassTransit;
+using MassTransit.EntityFrameworkCoreIntegration;
 using MassTransitSaga.MassTransit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -35,10 +38,26 @@ namespace MassTransitSaga
                 c.CustomSchemaIds(i => i.FullName);
             });
 
+            var connectionString = "Server=.;Database=masstransit_vergunningen;Trusted_Connection=True;MultipleActiveResultSets=True;";
+
+            services.AddDbContext<VergunningStateDbContext>(options =>
+            {
+                options.UseSqlServer(connectionString);
+            });
+
             services.AddMassTransit(x =>
             {
                 x.AddSagaStateMachine<VergunningStateMachine, VergunningState>()
-                    .InMemoryRepository();
+                    //.InMemoryRepository();
+                    .EntityFrameworkRepository(r =>
+                    {
+                        r.ConcurrencyMode = ConcurrencyMode.Pessimistic; // or use Optimistic, which requires RowVersion
+
+                        r.AddDbContext<DbContext, VergunningStateDbContext>((provider, builder) =>
+                        {
+                            builder.UseSqlServer(connectionString);
+                        });
+                    });
 
                 x.UsingInMemory((context, cfg) =>
                 {
@@ -57,6 +76,16 @@ namespace MassTransitSaga
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+
+                using (var serviceScope = app.ApplicationServices
+                            .GetRequiredService<IServiceScopeFactory>()
+                            .CreateScope())
+                {
+                    using (var context = serviceScope.ServiceProvider.GetService<VergunningStateDbContext>())
+                    {
+                        context.Database.Migrate();
+                    }
+                }
             }
 
             app.UseHttpsRedirection();
