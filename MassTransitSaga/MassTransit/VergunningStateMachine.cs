@@ -77,7 +77,7 @@ namespace MassTransitSaga.MassTransit
 
             During(Approved,
                 When(GenerateCommunicationFaulted)
-                    .TransitionTo(GenerationFaulted));
+                    .TransitionTo(GenerationFaulted)); // Or start a compensating activity (eg. remove files and return to Approved state, retry GenerateCommunication)
 
             During(Generating,
                 When(CommunicationGenerated)
