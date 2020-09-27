@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Automatonymous;
@@ -29,6 +28,11 @@ namespace MassTransitSaga.MassTransit
         Guid VergunningId { get; set; }
     }
 
+    public interface GenerateCommunicationFaulted
+    {
+        Guid VergunningId { get; set; }
+    }
+
     public interface CommunicationSent
     {
         Guid VergunningId { get; set; }
@@ -46,6 +50,8 @@ namespace MassTransitSaga.MassTransit
 
         public State Sent { get; private set; }
 
+        public State GenerationFaulted { get; private set; }
+
         public VergunningStateMachine()
         {
             InstanceState(x => x.CurrentState);
@@ -53,6 +59,7 @@ namespace MassTransitSaga.MassTransit
             Event(() => ApproveVergunning, x => x.CorrelateById(context => context.Message.VergunningId));
             Event(() => GenerateCommunication, x => x.CorrelateById(context => context.Message.VergunningId));
             Event(() => CommunicationGenerated, x => x.CorrelateById(context => context.Message.VergunningId));
+            Event(() => GenerateCommunicationFaulted, x => x.CorrelateById(context => context.Message.VergunningId));
             Event(() => CommunicationSent, x => x.CorrelateById(context => context.Message.VergunningId));
 
             Initially(
@@ -64,7 +71,13 @@ namespace MassTransitSaga.MassTransit
             During(Approved,
                 When(GenerateCommunication)
                     .Activity(x => x.OfType<GenerateCommunicationActivity>())
-                    .TransitionTo(Generating));
+                    .TransitionTo(Generating)
+                    .Catch<Exception>(ex => ex.PublishAsync(context => 
+                        context.Init<GenerateCommunicationFaulted>(new { VergunningId = context.Instance.CorrelationId }))));
+
+            During(Approved,
+                When(GenerateCommunicationFaulted)
+                    .TransitionTo(GenerationFaulted));
 
             During(Generating,
                 When(CommunicationGenerated)
@@ -81,6 +94,8 @@ namespace MassTransitSaga.MassTransit
         public Event<GenerateCommunication> GenerateCommunication { get; private set; }
 
         public Event<CommunicationGenerated> CommunicationGenerated { get; private set; }
+
+        public Event<GenerateCommunicationFaulted> GenerateCommunicationFaulted { get; private set; }
 
         public Event<CommunicationSent> CommunicationSent { get; private set; }
     }
@@ -129,6 +144,16 @@ namespace MassTransitSaga.MassTransit
             context.Instance.GenerationDate = DateTime.UtcNow;
 
             // generate files on docgen
+            try
+            {
+                throw new Exception("generation failed!");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Thread Id: {Thread.CurrentThread.ManagedThreadId} {this.GetType().Name} Info: Generation comms for {context.Instance.CorrelationId}", ex);
+                throw;
+            }
+
             await Task.Delay(10000);
 
             await _context.Publish<CommunicationGenerated>(new { VergunningId = context.Instance.CorrelationId }).ConfigureAwait(false);
@@ -173,7 +198,6 @@ namespace MassTransitSaga.MassTransit
             context.Instance.SendDate = DateTime.UtcNow;
 
             // send documents with email service
-
             await Task.Delay(5000);
             context.Instance.EmailId = (new Random()).Next(1000, 9999);
 
