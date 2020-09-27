@@ -4,14 +4,16 @@ using MassTransitSaga.MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace MassTransitSaga.Migrations
 {
     [DbContext(typeof(VergunningStateDbContext))]
-    partial class VergunningStateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20200927085702_MooooreFields")]
+    partial class MooooreFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

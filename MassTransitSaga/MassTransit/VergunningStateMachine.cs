@@ -55,7 +55,7 @@ namespace MassTransitSaga.MassTransit
 
             Initially(
                 When(ApproveVergunning)
-                    //.Then(x => x.Instance.CorrelationId = x.Data.VergunningId)
+                    .Then(x => x.Instance.ApprovalDate = DateTime.UtcNow)
                     .PublishAsync(context => context.Init<GenerateCommunication>(new { VergunningId = context.Instance.CorrelationId }))                    
                     .TransitionTo(Approved));
 
@@ -88,6 +88,14 @@ namespace MassTransitSaga.MassTransit
         public Guid CorrelationId { get; set; }
 
         public string CurrentState { get; set; }
+
+        public DateTime? ApprovalDate { get; set; }
+
+        public DateTime? GenerationDate { get; set; }
+
+        public DateTime? SendDate { get; set; }
+
+        public int? EmailId { get; set; }
     }
 
     public class GenerateCommunicationActivity : Activity<VergunningState, GenerateCommunication>
@@ -112,8 +120,10 @@ namespace MassTransitSaga.MassTransit
         public async Task Execute(BehaviorContext<VergunningState, GenerateCommunication> context, Behavior<VergunningState, GenerateCommunication> next)
         {
             // do the activity thing
+            context.Instance.GenerationDate = DateTime.UtcNow;
 
             // generate files on docgen
+            await Task.Delay(3000);
 
             await _context.Publish<CommunicationGenerated>(new { VergunningId = context.Instance.CorrelationId }).ConfigureAwait(false);
 
@@ -150,8 +160,12 @@ namespace MassTransitSaga.MassTransit
         public async Task Execute(BehaviorContext<VergunningState, CommunicationGenerated> context, Behavior<VergunningState, CommunicationGenerated> next)
         {
             // do the activity thing
+            context.Instance.SendDate = DateTime.UtcNow;
 
             // send documents with email service
+
+            await Task.Delay(5000);
+            context.Instance.EmailId = (new Random()).Next(1000, 9999);
 
             await _context.Publish<CommunicationSent>(new { VergunningId = context.Instance.CorrelationId }).ConfigureAwait(false);
 
@@ -171,7 +185,10 @@ namespace MassTransitSaga.MassTransit
         protected override void Configure(EntityTypeBuilder<VergunningState> entity, ModelBuilder model)
         {
             entity.Property(x => x.CurrentState).HasMaxLength(64);
-            //entity.Property(x => x.OrderDate);
+            entity.Property(x => x.ApprovalDate);
+            entity.Property(x => x.GenerationDate);
+            entity.Property(x => x.SendDate);
+            entity.Property(x => x.EmailId);
 
             // If using Optimistic concurrency, otherwise remove this property
             //entity.Property(x => x.RowVersion).IsRowVersion();
