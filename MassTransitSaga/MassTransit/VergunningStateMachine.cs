@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Automatonymous;
 using GreenPipes;
@@ -9,6 +10,7 @@ using MassTransit.EntityFrameworkCoreIntegration;
 using MassTransit.EntityFrameworkCoreIntegration.Mappings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.Extensions.Logging;
 
 namespace MassTransitSaga.MassTransit
 {
@@ -101,10 +103,12 @@ namespace MassTransitSaga.MassTransit
     public class GenerateCommunicationActivity : Activity<VergunningState, GenerateCommunication>
     {
         readonly ConsumeContext _context;
+        readonly ILogger<GenerateCommunicationActivity> _logger;
 
-        public GenerateCommunicationActivity(ConsumeContext context)
+        public GenerateCommunicationActivity(ConsumeContext context, ILogger<GenerateCommunicationActivity> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         public void Probe(ProbeContext context)
@@ -119,11 +123,13 @@ namespace MassTransitSaga.MassTransit
 
         public async Task Execute(BehaviorContext<VergunningState, GenerateCommunication> context, Behavior<VergunningState, GenerateCommunication> next)
         {
+            _logger.LogInformation($"Thread Id: {Thread.CurrentThread.ManagedThreadId} {this.GetType().Name} Info: Generating comms for {context.Instance.CorrelationId}");
+
             // do the activity thing
             context.Instance.GenerationDate = DateTime.UtcNow;
 
             // generate files on docgen
-            await Task.Delay(3000);
+            await Task.Delay(10000);
 
             await _context.Publish<CommunicationGenerated>(new { VergunningId = context.Instance.CorrelationId }).ConfigureAwait(false);
 
@@ -141,10 +147,12 @@ namespace MassTransitSaga.MassTransit
     public class SendCommunicationActivity : Activity<VergunningState, CommunicationGenerated>
     {
         readonly ConsumeContext _context;
+        readonly ILogger<SendCommunicationActivity> _logger;
 
-        public SendCommunicationActivity(ConsumeContext context)
+        public SendCommunicationActivity(ConsumeContext context, ILogger<SendCommunicationActivity> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         public void Probe(ProbeContext context)
@@ -159,6 +167,8 @@ namespace MassTransitSaga.MassTransit
 
         public async Task Execute(BehaviorContext<VergunningState, CommunicationGenerated> context, Behavior<VergunningState, CommunicationGenerated> next)
         {
+            _logger.LogInformation($"Thread Id: {Thread.CurrentThread.ManagedThreadId} {this.GetType().Name} Info: Sending comms for {context.Instance.CorrelationId}");
+
             // do the activity thing
             context.Instance.SendDate = DateTime.UtcNow;
 
